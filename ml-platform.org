@@ -150,7 +150,7 @@
         - Machine learning automation
           - Hyperparam optimization using automated optimization, like AutoML
 
-** hidden-technical-debt-in-machine-learning-systems
+** hidden-technical-debt-in-machine-learning-systems https://papers.nips.cc/paper/5656-hidden-technical-debt-in-machine-learning-systems.pdf
    - Complex models erode boundaries
      - Entanglement
        - changes in the distribution of the input features
