@@ -1,0 +1,272 @@
+
+* Machine Learning Platform Notes
+
+** Uber Michaelangelo https://eng.uber.com/michelangelo/
+   1. Manage data
+      - generate features
+        - sharable across teams
+      - separate training, validation, and testing data sets
+        - make it easy to run the same prep process for training and prediction data sets
+      - data quality monitoring
+      - *Offline* - models deployed offline
+        - Transactional and log data
+        - Stored in HDFS data lake, accessed by Spark and Hive
+        - containers and scheduling to extract featuress from lake, can publish to feature store for sharing
+        - batch jobs run on schedule or trigger, integrated with data quality monitoring
+      - *Online* - models deployed online
+        - Cannot read from hdfs due to latency
+        - Pre-computed aggregate features stored in Cassandra - low latency and ensures same data pipeline for training and serving
+          - Batch precompute data from HDFS and store in Cassandra - "avg meal preparation time for last 7 days"
+          - Near realtime compute - Kafka and Samza-based streaming compute - "avg meal preparation time for last hour"
+      - Centralized, Shared feature store
+        - easy to consume by online and offline models through feature name reference in model config
+        - system handles joining the HDFS data for training and batch prediction, and fetching from Cassandra for online predictions
+        - 10000 features in feature store
+        - Automatically recomputed daily
+        - Future work - automatic feature engineering and feature selection for a given ml problem
+      - DSL for feature selection and transformation
+        - select, transform, and combine in scala
+        - part of model configuration - same expressions applied at training and prediction to help guarantee the same final set of features is generated
+   2. Train models
+      - large-scale distributed training
+      - Offline modeling algorithms: decision trees, linear/logistic models, k-means (unsupervised), time series, deep neural nets
+        - Can quickly add new algorithms developed by AI lab researchers
+        - Support custom training, eval, and serving code
+      - Model configuration
+        - model type, hyper-parameters, data source reference, and feature DSL expressions
+        - compute resource requirements (the number of machines, how much memory, whether or not to use GPUs, etc.)
+      - After training, model configuration, learned params, and evaluation report saved to model repo for analysis and deployment
+        - Performance metrics included in model evaluation report
+      - Automated hyper-param search
+      - Partitioned models with fallback to general models - i.e. city models fall back to country models if bad performance
+      - Training jobs and scheduling configured and managed through web UI or API, often via jupyter nb
+   3. Evaluate models
+      - Keep track of every model version trained in Cassandra model repo
+        - Who trained it
+        - Start and end time of training job
+        - Full model configuration (features used, hyper-parameter values, etc.)
+        - Reference to training and test data sets
+        - Distribution and relative importance of each feature
+        - Model accuracy metrics
+        - Standard charts and graphs for each model type (e.g. ROC curve, PR curve, and confusion matrix for a binary classifier)
+        - Full learned parameters of the model
+        - Summary statistics for model visualization
+      - Model accuracy report
+        - algorithm-specific visualization of performance metrics
+        - decision tree - visualize tree nodes, data split, etc
+        - feature report
+          - order of importance to model
+          - distribution histogram
+          - two-way partial dependence diagram
+   4. Deploy models
+      - through UI or API
+      - offline deployment
+        - deploy to offline container, spark job to run on demand or on schedule
+      - online deployment
+        - deploy to online prediction service cluster - hundreds of machines behind load balancer
+        - prediction requests in batch or individuals as network RPC calls
+      - library deployment
+        - deploy as a java library, to be used by another service as a Java API
+      - packaged in zip archive and copied to relevant hosts in data centers using code deployment infrastructure
+        - metadata files, model parameter files, and compiled DSL expressions
+        - prediction containers automatically load new models from disk and start servicing
+      - Use automation scripts to schedule regular model training and deployment through Michaelangelo's API
+      - Web UI provides manual triggers for training and deployment
+   5. Make predictions
+      - Load feature data from client service + feature store
+      - Use DSL expressions to generate feature vector
+      - Online models - return result to client service over network
+      - Offline models - write results to HIVE for consumption by other downstream batch jobs or queried
+      - Referencing Models
+        - Multiple models deployed to same server
+        - UUID or tag to specify model per request
+        - Use competing models for A/B testing
+      - Scale and latency
+        - stateless ml services, easy to scale based on demand w load balancer
+        - P95 latency <= 10 ms for Cassandra features, <= 5 ms for non Cassandra
+   6. Monitor predictions
+      - Store a percentage of the predictions, and compare against observed outcome later on
+      - Generate ongoing, live measurements of accuracy
+        - Provide charts over time, and users can set threshold alerts
+   7. Under Development
+      - AutoML - automate (hyper) parameter selection, feature generation
+      - Deep learning model visualization
+      - Online learning
+        - easily updateable model types
+        - faster training and evaluation architecture and pipelines
+        - automated model validation and deployment
+        - sophisticated monitoring and alerting systems
+      - Distributed deep learning
+        - support larger data and different hardware requirements (GPUs)
+        - distributed learning + integration with flexible resource management stack
+
+** Airbnb https://medium.com/airbnb-engineering/using-machine-learning-to-predict-value-of-homes-on-airbnb-9272d3d4739d
+   1. Feature engineering (zipline)
+      - Zipline - feature repository for shared features
+      - Feature configuration - Hive queries to create features from scratch
+   2. Prototyping and Training (sklearn)
+      - sklearn - pipelines for data transformation
+        - Data imputation and encoding categorical variables
+   3. Model Selection & Validation (AutoML)
+      - Interpretability vs generalizability - bias vs variance
+      - AutoML - select best performing model
+   4. Productionization (ML Automator)
+      - ML Automator
+        - convert jupyter nb to airflow pipeline
+          - specify model config in nb
+            - specify training data
+            - compute resources
+          - define fit and transform functions
+   5. Under development
+      - Periodic re-training
+      - Measure model performance over time
+
+** Facebook FBLearner Flow https://code.facebook.com/posts/1072626246134461/introducing-fblearner-flow-facebook-s-ai-backbone/
+   1. Terms: Workflows, channels, and operators
+      - Channels represent inputs/outputs using a custom-built type system
+      - Operators declares CPU, GPU, and memory requirements
+   2. Platform Components
+      - Authorship and execution environment for custom distributed workflows
+        - workflows & operators defined with python functions and decorators, which are used to build data dependency dags
+        - fblearner flow deploys the dag operators to machines, and handles io for those operators
+      - Experimentation management UI for launching experiments and viewing results
+        - Launching workflows
+          - UI reads input schema and auto-generates a structured form to specify inputs into workflow
+        - Visualizing and comparing outputs
+          - See outputs, modify tags and metadata, and deploy to production through UI
+          - Compare results of different experiments
+          - Type-specific auto-rendering based on output types specified for channel
+        - Managing experiements through FbLearner Flow UI
+          - Workflow runs indexed in ElasticSearch
+          - Engineer can run complex parameter sweeps for best configuration
+      - Numerous predefined pipelines for training the most commonly used machine learning algorithms at Facebook
+        - Common ml algorithms supported
+        - Users can implement or add new algorithms, or add a wrapped open-sourced implementation
+      - Future plans
+        - Increasing efficiency and decreasing latency
+          - data locality, improving resource requirements to optimize compute node use
+        - Speed
+          - Minimizing turnaround time for workflow completion for quick iterations
+        - Machine learning automation
+          - Hyperparam optimization using automated optimization, like AutoML
+
+** hidden-technical-debt-in-machine-learning-systems
+   - Complex models erode boundaries
+     - Entanglement
+       - changes in the distribution of the input features
+         - affect model performance
+         - model configurations and hyper parameters needs adjustments
+       - mitigation strategy:
+         - isolate models and serve ensembles
+         - detect model prediction behavior
+     - Correction cascades
+       - Using models to derive other models, learning corrections
+       - Improving one model affects performance of others, sometimes negatively
+       - mitigation strategy:
+         - create one giant model and use it for all cases that are dependent
+         - create entirely separate models
+     - Undeclared consumers
+       - "visibility debt"
+       - Predictions from a model are used up by undeclared consumers
+         - strong coupling
+         - cannot improve model for fear of affecting consumers, similar to correction cascades
+       - mitigation strategy:
+         - access restrictions
+         - SLAs
+   - Data dependencies cost more than code dependencies
+     - Unstable data dependencies
+       - input signals that change silently and drastically over time
+       - dependent model would be fitted on incorrect values
+       - mitigation strategy:
+         - create a versioned copy of the signal value
+         - must maintain multiple versions of the same signal over time, which has added cost
+     - Underutilized data dependencies
+       - Features that provide little or no gain to the model, which are included carelessly or early on in model development
+       - Legacy features, bundled features, episolon-features, correlated features
+       - mitigation strategy:
+         - exhaustive leave-one-feature-out evaluations run regularly and remove unnecessary features
+     - Static analysis of data dependencies
+       - similar to static analysis of code through dependency graphs
+       - automated feature management system that enables annotation of data sources and features
+         - runs automated checks to ensure all dependencies have appropriate annotations and resolve dependency trees
+         - makes migration and deletion much safer
+   - Feedback loops
+     - Direct feedback loop
+       - model affecting the selection of future training data
+     - Hidden feedback loops
+       - two independent systems affecting each other indirectly
+       - ex: two components of a web page optimizing what to show independently affecting how user responds to other component
+   - ML System Anti-Patterns
+     - Glue code
+       - Package-specific glue code is code written to get data in and out of general purpose packages in their specific ways
+       - Mitigation strategy
+         - wrap black-box packages into common API's defined for the system
+         - allows infra to be reusable and reduces cost of changing packages
+     - Pipeline jungles
+       - Often occurs in data preparation - intermediary steps for scraping, joins, sampling steps with intermediate file output
+       - Mitigation strategy
+         - Think holistically about data collection and feature generation, redesign from ground-up
+         - Keep engineers and researchers in the same team, or same people
+     - Dead experimental codepaths
+       - conditional branches with slight adjustments existing pipelines for quick experiements adding up over time
+       - Must remove periodically
+     - Abstraction Debt
+       - Distinct lack of strong abstractions blurring the lines of components
+       - Creating the right interface for describing a stream of data
+     - Common Smells
+       - Plain-Old-Data Type
+         - raw floats or integers
+         - model parameters should know which parameter it is in the model
+         - prediction values should also have meta data about the model that produced it
+       - Multiple language
+         - Increases cost of effective testing
+         - Increases difficulty of transferring ownership to other individuals
+       - Prototype smell
+         - Regular reliance on prototype environment indicates fully scale system is brittle and might require some abstractions and interfaces
+         - Prototype environments have their own cost, may tempt user to use prototype as production due to time crunch
+         - The results in prototyping environments are not reflective of actual full scale
+     - Configuration debt
+       - Mature systems can accumulate a lot of configs over time
+       - Mistakes in config can be costly - loss of time, waste of resources, or production issues
+       - Configurations should be treated like code with reviews, testing, etc
+   - Dealing with changes in the real world
+     - Fixed thresholds in dynamic systems
+       - Binary classification problems are usually solved with manual thresholding on a score
+       - Updating the model requires updating the threshold
+       - Automated model updates can use automated thresholding using heldout data
+     - Monitoring and testing
+       - Comprehensive live monitoring of system behavior
+         - Prediction bias
+           - the distribution of predicted labels is equal to the distribution of observed labels
+           - detect cases in which the world behavior suddenly changes
+           - can use automated alerting
+         - Action limits
+           - for systems used to take actions, such as marking messages as spam
+           - sanity checking mechanism
+           - set limit to a broad enough value
+           - set alerts for manual intervention once limit is reached
+         - Upstream producers
+           - upstream producers of data should routinely check to make sure they are producing values that meet the service level objective that takes into account downstream ml system
+           - propagate any errors upstream to downstream to consumers
+       - For systems interacting with changes in the world, setting up alerts with human intervention is necessary, but for time-sensitive issues, make an effort to build an automated response
+   - Other areas of ML-related debt
+     - Data testing debt
+       - basic sanity tests
+       - sophisticated tests that monitor changes in input distributions
+     - Reproducibiity debt
+       - caused by
+         - randomized algorithms
+         - parallel-learning nondeterminism
+         - reliance on initial conditions
+         - interactions with the external world
+       - science requires reproducible results from experiments
+     - Process management debt
+       - Mature systems have dozens or hundreds of models running simultaneously
+       - Safely, automatically updating configs for many models
+       - Allocating resources among models with priorities
+       - Visualize and detect blockages in the flow of data in a production pipeline
+       - Developing tooling for recovery in production
+       - System smell: common processes with many manual steps
+     - Cultural debt
+       - Reduce line between ML research and engineering
+       - Create team culture that reward deletion of features, reduction of complexity, improvments in reproducibility, stability, and monitoring to the same degree as improvments in accuracy
