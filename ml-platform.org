@@ -270,3 +270,17 @@
      - Cultural debt
        - Reduce line between ML research and engineering
        - Create team culture that reward deletion of features, reduction of complexity, improvments in reproducibility, stability, and monitoring to the same degree as improvments in accuracy
+** TFX (TensorFlow Extended)
+   http://delivery.acm.org/10.1145/3100000/3098021/p1387-baylor.pdf?ip=4.14.109.250&id=3098021&acc=OPENTOC&key=4D4702B0C3E38B35%2E4D4702B0C3E38B35%2E4D4702B0C3E38B35%2E054E54E275136550&__acm__=1518467305_71c8d54315fc241fbf014502aca6df48
+   Typical ml systems - Fragile systems with duplicated code
+   TFX reduced custom code, faster experiment cycles, and better models
+   - Requirements
+     - Generic enough to handle most common learning tasks but must be extensible to support special use cases
+     - Continous training and serving
+     - Expose UI for configuring deployment and monitoring
+     - Production-level reliability and scalability
+   - Integrated frontend for job management, monitoring, debugging, data/model/evaluation visualization
+   - Shared configuration Framework and Job Orchestration
+   - Data analysis, transformation, and validation
+     - Input data validation, without spammy notifications to user about data quality
+     - 
